@@ -1,6 +1,6 @@
 name: Patch
 env:
-  BRANCH_TO_CLONE: ${{ github.base_ref }}
+  BRANCH_TO_CLONE: version-14-hotfix
 on:
   pull_request:
     paths-ignore:
