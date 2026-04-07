@@ -1,5 +1,6 @@
 name: Patch
-
+env:
+  BRANCH_TO_CLONE: ${{ github.base_ref }}
 on:
   pull_request:
     paths-ignore:
@@ -25,7 +26,7 @@ jobs:
 
     services:
       mysql:
-        image: mariadb:10.8
+        image: mariadb:10.6
         env:
           MARIADB_ROOT_PASSWORD: 'root'
         ports:
