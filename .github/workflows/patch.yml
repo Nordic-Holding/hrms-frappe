@@ -25,7 +25,7 @@ jobs:
 
     services:
       mysql:
-        image: mariadb:11.8
+        image: mariadb:10.8
         env:
           MARIADB_ROOT_PASSWORD: 'root'
         ports:
@@ -47,15 +47,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: |
-            3.11
-            3.13
-            3.14
+          python-version: '3.10'
 
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 18
           check-latest: true
 
       - name: Add to Hosts
@@ -110,8 +107,8 @@ jobs:
           jq 'del(.install_apps)' ~/frappe-bench/sites/test_site/site_config.json > tmp.json
           mv tmp.json ~/frappe-bench/sites/test_site/site_config.json
 
-          wget https://frappe.io/files/frappe-hr-v14-p.sql.gz
-          bench --site test_site --force restore ~/frappe-bench/frappe-hr-v14-p.sql.gz
+          wget https://frappe.io/files/erpnext-hr-v13.sql.gz
+          bench --site test_site --force restore ~/frappe-bench/erpnext-hr-v13.sql.gz
 
           git -C "apps/frappe" remote set-url upstream https://github.com/frappe/frappe.git
           git -C "apps/erpnext" remote set-url upstream https://github.com/frappe/erpnext.git
@@ -135,7 +132,7 @@ jobs:
             # Resetup env and install apps
             pgrep honcho | xargs kill
             rm -rf ~/frappe-bench/env
-            bench -v setup env --python python$2
+            bench -v setup env
             bench pip install -e ./apps/erpnext
             bench pip install -e ./apps/hrms
             bench start &>> ~/frappe-bench/bench_start.log &
@@ -143,8 +140,7 @@ jobs:
             bench --site test_site migrate
           }
 
-          update_to_version 15 3.13
-          update_to_version 16 3.14
+          update_to_version 14
 
           echo "Updating to latest version"
           git -C "apps/frappe" fetch --depth 1 upstream "${GITHUB_BASE_REF:-${GITHUB_REF##*/}}"
