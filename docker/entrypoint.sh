@@ -50,4 +50,10 @@ fi
 
 bench use "${SITE_NAME}"
 
+if [ -n "${FRAPPE_HOST_NAME}" ]; then
+    bench --site "${SITE_NAME}" set-config host_name "${FRAPPE_HOST_NAME}"
+fi
+
+bench --site "${SITE_NAME}" set-config serve_default_site true
+
 exec "$@"

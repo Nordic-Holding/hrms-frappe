@@ -54,11 +54,12 @@ services:
       - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root}
       - REDIS_CACHE_HOST=redis-cache
       - REDIS_QUEUE_HOST=redis-queue
-      - SITE_NAME=${SITE_NAME:-hrms.localhost}
+      - SITE_NAME=${SITE_NAME:-erp.nordicbh.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - FRAPPE_HOST_NAME=${FRAPPE_HOST_NAME:-https://erp.nordicbh.com}
     ports:
-      - "${HTTP_PORT:-8000}:8000"
-      - "${SOCKETIO_PORT:-9000}:9000"
+      - "8000:8000"
+      - "9000:9000"
     volumes:
       - sites-data:/home/frappe/frappe-bench/sites
     depends_on:
