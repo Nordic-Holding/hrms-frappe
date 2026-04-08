@@ -10,11 +10,11 @@ WORKDIR /home/frappe
 ENV NVM_DIR=/home/frappe/.nvm
 SHELL ["/bin/bash", "-c"]
 
+# bench init WITHOUT --skip-assets so frappe's node_modules (esbuild etc.) get installed
 RUN source "$NVM_DIR/nvm.sh" && \
     bench init \
         --frappe-branch ${FRAPPE_BRANCH} \
         --skip-redis-config-generation \
-        --skip-assets \
         frappe-bench
 
 WORKDIR /home/frappe/frappe-bench
@@ -33,7 +33,7 @@ RUN source "$NVM_DIR/nvm.sh" && \
 
 RUN source "$NVM_DIR/nvm.sh" && \
     export NODE_OPTIONS="--max-old-space-size=4096" && \
-    bench build --production
+    bench build
 
 RUN sed -i '/redis/d' Procfile && \
     sed -i '/watch/d' Procfile
