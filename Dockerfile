@@ -25,7 +25,7 @@ RUN source "$NVM_DIR/nvm.sh" && \
 
 COPY --chown=frappe:frappe . apps/hrms
 
-RUN echo "hrms" >> sites/apps.txt && \
+RUN printf '\nhrms\n' >> sites/apps.txt && \
     ./env/bin/pip install -e apps/hrms
 
 RUN source "$NVM_DIR/nvm.sh" && \
