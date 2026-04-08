@@ -7,15 +7,20 @@ ARG PAYMENTS_BRANCH=version-16
 USER frappe
 WORKDIR /home/frappe
 
-RUN bench init \
-    --frappe-branch ${FRAPPE_BRANCH} \
-    --skip-redis-config-generation \
-    --skip-assets \
-    frappe-bench
+ENV NVM_DIR=/home/frappe/.nvm
+SHELL ["/bin/bash", "-c"]
+
+RUN source "$NVM_DIR/nvm.sh" && \
+    bench init \
+        --frappe-branch ${FRAPPE_BRANCH} \
+        --skip-redis-config-generation \
+        --skip-assets \
+        frappe-bench
 
 WORKDIR /home/frappe/frappe-bench
 
-RUN bench get-app --branch ${ERPNEXT_BRANCH} --skip-assets erpnext && \
+RUN source "$NVM_DIR/nvm.sh" && \
+    bench get-app --branch ${ERPNEXT_BRANCH} --skip-assets erpnext && \
     bench get-app --branch ${PAYMENTS_BRANCH} --skip-assets payments
 
 COPY --chown=frappe:frappe . apps/hrms
@@ -23,9 +28,12 @@ COPY --chown=frappe:frappe . apps/hrms
 RUN echo "hrms" >> sites/apps.txt && \
     ./env/bin/pip install -e apps/hrms
 
-RUN cd apps/hrms && yarn install && yarn build
+RUN source "$NVM_DIR/nvm.sh" && \
+    cd apps/hrms && yarn install && yarn build
 
-RUN bench build
+RUN source "$NVM_DIR/nvm.sh" && \
+    export NODE_OPTIONS="--max-old-space-size=4096" && \
+    bench build --production
 
 RUN sed -i '/redis/d' Procfile && \
     sed -i '/watch/d' Procfile

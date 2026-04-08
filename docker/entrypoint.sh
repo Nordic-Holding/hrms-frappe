@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+export NVM_DIR=/home/frappe/.nvm
+source "$NVM_DIR/nvm.sh"
+
 cd /home/frappe/frappe-bench
 
 if [ ! -f "sites/apps.txt" ]; then
