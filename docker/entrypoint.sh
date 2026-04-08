@@ -11,6 +11,10 @@ if [ ! -f "sites/apps.txt" ]; then
     cp -r sites-init/* sites/
 fi
 
+echo "Syncing built assets into sites volume..."
+cp -r sites-init/assets sites/
+cp sites-init/apps.txt sites/apps.txt
+
 bench set-mariadb-host "${DB_HOST:-mariadb}"
 bench set-redis-cache-host "redis://${REDIS_CACHE_HOST:-redis-cache}:6379"
 bench set-redis-queue-host "redis://${REDIS_QUEUE_HOST:-redis-queue}:6379"
@@ -29,7 +33,7 @@ until nc -z "${DB_HOST:-mariadb}" "${DB_PORT:-3306}" 2>/dev/null; do
 done
 echo "MariaDB is ready."
 
-SITE_NAME="${SITE_NAME:-hrms.localhost}"
+SITE_NAME="${SITE_NAME:-erp.nordicbh.com}"
 
 if [ ! -d "sites/${SITE_NAME}" ]; then
     echo "Creating site ${SITE_NAME}..."
