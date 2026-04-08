@@ -1,0 +1,77 @@
+services:
+  mariadb:
+    image: mariadb:10.11
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis-cache:
+    image: redis:7-alpine
+    volumes:
+      - redis-cache-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-queue:
+    image: redis:7-alpine
+    volumes:
+      - redis-queue-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  hrms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        FRAPPE_BRANCH: ${FRAPPE_BRANCH:-version-16}
+        ERPNEXT_BRANCH: ${ERPNEXT_BRANCH:-version-16}
+        PAYMENTS_BRANCH: ${PAYMENTS_BRANCH:-version-16}
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root}
+      - REDIS_CACHE_HOST=redis-cache
+      - REDIS_QUEUE_HOST=redis-queue
+      - SITE_NAME=${SITE_NAME:-hrms.localhost}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+    ports:
+      - "${HTTP_PORT:-8000}:8000"
+      - "${SOCKETIO_PORT:-9000}:9000"
+    volumes:
+      - sites-data:/home/frappe/frappe-bench/sites
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mariadb-data:
+  redis-cache-data:
+  redis-queue-data:
+  sites-data:
