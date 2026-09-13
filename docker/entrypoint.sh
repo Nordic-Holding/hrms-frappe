@@ -12,7 +12,8 @@ if [ ! -f "sites/apps.txt" ]; then
 fi
 
 echo "Syncing built assets into sites volume..."
-cp -r sites-init/assets sites/
+rm -rf sites/assets
+cp -a sites-init/assets sites/assets
 cp sites-init/apps.txt sites/apps.txt
 
 bench set-mariadb-host "${DB_HOST:-mariadb}"
