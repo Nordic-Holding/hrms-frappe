@@ -20,8 +20,6 @@ services:
 
   redis-cache:
     image: redis:7-alpine
-    volumes:
-      - redis-cache-data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
