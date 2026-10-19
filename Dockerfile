@@ -12,6 +12,13 @@ USER frappe
 
 WORKDIR /home/frappe
 ENV NVM_DIR=/home/frappe/.nvm
+
+# Large GitHub clones (erpnext) have been dropped mid-transfer over HTTP/2 from this server.
+# Use HTTP/1.1 and do not abort slow transfers.
+RUN git config --global http.version HTTP/1.1 && \
+    git config --global http.postBuffer 524288000 && \
+    git config --global http.lowSpeedLimit 0 && \
+    git config --global http.lowSpeedTime 999999
 SHELL ["/bin/bash", "-c"]
 
 RUN source "$NVM_DIR/nvm.sh" && \
