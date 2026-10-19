@@ -30,5 +30,6 @@ class TrainingResult(Document):
 
 
 @frappe.whitelist()
-def get_employees(training_event):
+def get_employees(training_event: str):
+	frappe.has_permission("Training Event", "read", training_event, throw=True)
 	return frappe.get_doc("Training Event", training_event).employees

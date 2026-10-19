@@ -336,6 +336,7 @@ import WorkflowActionSheet from "@/components/WorkflowActionSheet.vue"
 import { FileAttachment, guessStatusColor } from "@/composables"
 import useWorkflow from "@/composables/workflow"
 import { getCompanyCurrency } from "@/data/currencies"
+import { getLeaveStatus } from "@/data/leaves"
 import { formatCurrency } from "@/utils/formatters"
 import { useDownloadPDF } from "@/utils/commonUtils"
 
@@ -386,7 +387,7 @@ const props = defineProps({
 		default: false,
 	},
 })
-const emit = defineEmits(["validateForm", "update:modelValue"])
+const emit = defineEmits(["validateForm", "update:modelValue", "formReloaded"])
 const router = useRouter()
 const { downloadPDF } = useDownloadPDF()
 
@@ -420,6 +421,8 @@ const status = computed(() => {
 		const stateField = workflow.value.getWorkflowStateField()
 		if (stateField) return formModel.value[stateField]
 	}
+
+	if (props.doctype === "Leave Application") return getLeaveStatus(formModel.value)
 
 	return formModel.value.status || formModel.value.approval_status
 })
@@ -553,7 +556,6 @@ const docList = createListResource({
 const documentResource = createDocumentResource({
 	doctype: props.doctype,
 	name: props.id,
-	fields: "*",
 	setValue: {
 		onSuccess() {
 			toast({
@@ -654,7 +656,7 @@ function validateMandatoryFields() {
 
 	if (errorFields.length) {
 		formErrorMessage.value = `${errorFields.join(", ")} ${
-			errorFields.length > 1 ? "fields are mandatory" : "field is mandatory"
+			errorFields.length > 1 ? __("fields are mandatory") : __("field is mandatory")
 		}`
 		return false
 	} else {
@@ -674,7 +676,7 @@ async function handleDocUpdate(action) {
 		} else if (action == "cancel") {
 			params.docstatus = 2
 		}
-		
+
 		await documentResource.setValue.submit(params)
 		await documentResource.get.promise
 		resetForm()
@@ -720,6 +722,7 @@ function resetForm() {
 	nextTick(() => {
 		isFormDirty.value = false
 		isFormUpdated.value = true
+		emit("formReloaded")
 	})
 }
 function handleDownload() {

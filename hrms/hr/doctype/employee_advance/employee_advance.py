@@ -20,11 +20,6 @@ class EmployeeAdvanceOverPayment(frappe.ValidationError):
 
 
 class EmployeeAdvance(Document):
-	def onload(self):
-		self.get("__onload").make_payment_via_journal_entry = frappe.db.get_single_value(
-			"Accounts Settings", "make_payment_via_journal_entry"
-		)
-
 	def validate(self):
 		validate_active_employee(self.employee)
 		self.validate_advance_account_currency()
@@ -123,11 +118,12 @@ class EmployeeAdvance(Document):
 				and total_amount == flt(self.paid_amount, precision)
 			):
 				status = "Partly Claimed and Returned"
-			elif flt(self.paid_amount) > 0 and (
-				flt(self.advance_amount, precision) == flt(self.paid_amount, precision)
-				or (self.paid_amount and self.repay_unclaimed_amount_from_salary)
+			elif flt(self.paid_amount) > 0 and flt(self.advance_amount, precision) == flt(
+				self.paid_amount, precision
 			):
 				status = "Paid"
+			elif flt(self.paid_amount) > 0:
+				status = "Partially Paid"
 			else:
 				status = "Unpaid"
 		elif self.docstatus == 2:
@@ -207,6 +203,7 @@ class EmployeeAdvance(Document):
 		self.db_set("paid_amount", paid_amount)
 		self.db_set("return_amount", return_amount)
 		self.set_status(update=True)
+		self.set_pending_amount(update=True)
 
 		base_paid_amount = aple_paid_amount.get("base_paid_amount") or 0
 		self.db_set("base_paid_amount", base_paid_amount)
@@ -231,18 +228,23 @@ class EmployeeAdvance(Document):
 		self.reload()
 		self.set_status(update=True)
 
-	def set_pending_amount(self):
+	def set_pending_amount(self, update=False):
 		Advance = frappe.qb.DocType("Employee Advance")
-		self.pending_amount = (
+		pending_amount = (
 			frappe.qb.from_(Advance)
 			.select(Sum(Advance.advance_amount - Advance.paid_amount))
 			.where(
 				(Advance.employee == self.employee)
 				& (Advance.docstatus == 1)
 				& (Advance.posting_date <= self.posting_date)
-				& (Advance.status == "Unpaid")
+				& (Advance.status.isin(["Unpaid", "Partially Paid"]))
 			)
 		).run()[0][0] or 0.0
+
+		if update:
+			self.db_set("pending_amount", pending_amount)
+		else:
+			self.pending_amount = pending_amount
 
 	def check_linked_payment_entry(self):
 		from erpnext.accounts.utils import (
@@ -256,48 +258,7 @@ class EmployeeAdvance(Document):
 
 
 @frappe.whitelist()
-def make_bank_entry(dt, dn):
-	doc = frappe.get_doc(dt, dn)
-	payment_account = get_same_currency_bank_cash_account(doc.company, doc.currency, doc.mode_of_payment)
-
-	je = frappe.new_doc("Journal Entry")
-	je.posting_date = nowdate()
-	je.voucher_type = "Bank Entry"
-	je.company = doc.company
-	je.remark = "Payment against Employee Advance: " + dn + "\n" + doc.purpose
-	je.multi_currency = 1 if doc.currency != erpnext.get_company_currency(doc.company) else 0
-
-	je.append(
-		"accounts",
-		{
-			"account": doc.advance_account,
-			"account_currency": doc.currency,
-			"debit_in_account_currency": flt(doc.advance_amount),
-			"reference_type": "Employee Advance",
-			"reference_name": doc.name,
-			"party_type": "Employee",
-			"cost_center": erpnext.get_default_cost_center(doc.company),
-			"party": doc.employee,
-			"is_advance": "Yes",
-		},
-	)
-
-	je.append(
-		"accounts",
-		{
-			"account": payment_account.account or payment_account.name,
-			"cost_center": erpnext.get_default_cost_center(doc.company),
-			"credit_in_account_currency": flt(doc.advance_amount),
-			"account_currency": doc.currency,
-			"account_type": payment_account.account_type,
-		},
-	)
-
-	return je.as_dict()
-
-
-@frappe.whitelist()
-def create_return_through_additional_salary(doc):
+def create_return_through_additional_salary(doc: str | dict | Document) -> Document:
 	import json
 
 	if isinstance(doc, str):
@@ -317,15 +278,27 @@ def create_return_through_additional_salary(doc):
 
 @frappe.whitelist()
 def make_return_entry(
-	employee,
-	company,
-	employee_advance_name,
-	return_amount,
-	advance_account,
-	currency,
-	mode_of_payment=None,
-):
-	bank_cash_account = get_same_currency_bank_cash_account(company, currency, mode_of_payment)
+	employee: str,
+	company: str,
+	employee_advance_name: str,
+	return_amount: str | float,
+	advance_account: str,
+	currency: str,
+	mode_of_payment: str | None = None,
+	bank_account: str | None = None,
+) -> dict:
+	bank_cash_account = get_same_currency_bank_cash_account(company, currency, mode_of_payment, bank_account)
+
+	if not (bank_cash_account.get("account") or bank_cash_account.get("name")):
+		frappe.msgprint(
+			_(
+				"Couldn't automatically pick a Bank/Cash Account for this return. Please set one in the"
+				" Accounting Entries below, or set a Default Cash Account in the {0} to avoid this next"
+				" time."
+			).format(get_link_to_form("Company", company + "#accounts_tab", _("Company"))),
+			title=_("Bank/Cash Account Not Set"),
+			indicator="orange",
+		)
 
 	advance_account_currency = frappe.db.get_value("Account", advance_account, "account_currency")
 
@@ -368,13 +341,17 @@ def make_return_entry(
 	return je.as_dict()
 
 
-def get_same_currency_bank_cash_account(company, currency, mode_of_payment=None):
+def get_same_currency_bank_cash_account(company, currency, mode_of_payment=None, account=None):
 	company_currency = erpnext.get_company_currency(company)
 	if currency == company_currency:
-		return get_default_bank_cash_account(company, account_type="Cash", mode_of_payment=mode_of_payment)
+		return get_default_bank_cash_account(
+			company,
+			account_type="Cash",
+			mode_of_payment=None if account else mode_of_payment,
+			account=account,
+		)
 
-	account = None
-	if mode_of_payment:
+	if not account and mode_of_payment:
 		from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
 
 		account = get_bank_cash_account(mode_of_payment, company).get("account")
@@ -412,3 +389,28 @@ def get_voucher_type(mode_of_payment=None):
 			voucher_type = "Bank Entry"
 
 	return voucher_type
+
+
+@frappe.whitelist()
+def get_employee_advance_return(employee_advance: str):
+	frappe.has_permission("Employee Advance", ptype="read", doc=employee_advance, throw=True)
+
+	AdditionalSalary = frappe.qb.DocType("Additional Salary")
+	return_entries = (
+		frappe.qb.from_(AdditionalSalary)
+		.select(Sum(AdditionalSalary.amount).as_("total_return_scheduled"))
+		.where(
+			(AdditionalSalary.ref_doctype == "Employee Advance")
+			& (AdditionalSalary.ref_docname == employee_advance)
+			& (AdditionalSalary.docstatus == 1)
+		)
+	).run(as_dict=True)
+
+	total_return_scheduled = flt(return_entries[0].total_return_scheduled)
+	already_returned = flt(frappe.db.get_value("Employee Advance", employee_advance, "return_amount"))
+	pending_scheduled = max(0, total_return_scheduled - already_returned)
+
+	return {
+		"total_return_scheduled": pending_scheduled,
+		"has_return_scheduled": bool(pending_scheduled),
+	}

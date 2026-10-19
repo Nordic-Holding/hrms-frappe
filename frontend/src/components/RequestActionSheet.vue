@@ -171,6 +171,8 @@ import FilePreviewModal from "@/components/FilePreviewModal.vue"
 import WorkflowActionSheet from "@/components/WorkflowActionSheet.vue"
 
 import { getCompanyCurrency } from "@/data/currencies"
+import { getLeaveStatus } from "@/data/leaves"
+import { settings } from "@/data/settings"
 import { formatCurrency } from "@/utils/formatters"
 
 import useWorkflow from "@/composables/workflow"
@@ -231,9 +233,16 @@ const permittedWriteFields = createResource({
 	auto: true,
 })
 
+const sessionEmployee = inject("$employee")
+
 function hasPermission(action) {
-	if (action === "approval")
+	if (action === "approval" && props.modelValue.doctype === "Leave Application"){
+		// prevent self leave approval
+		const isSelfLeave = document?.doc?.employee === sessionEmployee?.data?.name 
+		if (isSelfLeave && settings.data?.prevent_self_leave_approval)
+			return false
 		return permittedWriteFields.data?.includes(approvalField.value)
+	}
 	return docPermissions.data?.permissions[action]
 }
 
@@ -263,6 +272,9 @@ const fieldsWithValues = computed(() => {
 			}
 			field.value =
 				document?.doc?.[field.fieldname] || props.modelValue[field.fieldname]
+
+			if (props.modelValue.doctype === "Leave Application" && field.fieldname === "status")
+				field.value = getLeaveStatus(document.doc || props.modelValue)
 		}
 
 		return field.value
@@ -337,6 +349,7 @@ const openFormView = () => {
 onMounted(() => {
 	workflow.value = useWorkflow(props.modelValue.doctype)
 })
+
 </script>
 
 <style scoped>

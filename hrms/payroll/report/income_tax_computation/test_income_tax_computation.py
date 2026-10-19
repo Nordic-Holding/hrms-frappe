@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import getdate
+from frappe.utils import add_days, getdate
 
 from erpnext.setup.doctype.employee.test_employee import make_employee
 
@@ -22,14 +22,15 @@ class TestIncomeTaxComputation(HRMSTestSuite):
 		self.create_records()
 
 	def cleanup_records(self):
-		frappe.db.sql("delete from `tabEmployee Tax Exemption Declaration`")
-		frappe.db.sql("delete from `tabPayroll Period`")
-		frappe.db.sql("delete from `tabIncome Tax Slab`")
-		frappe.db.sql("delete from `tabSalary Component`")
-		frappe.db.sql("delete from `tabEmployee Benefit Application`")
-		frappe.db.sql("delete from `tabEmployee Benefit Claim`")
-		frappe.db.sql("delete from `tabEmployee` where company='_Test Company'")
-		frappe.db.sql("delete from `tabSalary Slip`")
+		frappe.qb.from_("Employee Tax Exemption Declaration").delete().run()
+		frappe.qb.from_("Payroll Period").delete().run()
+		frappe.qb.from_("Income Tax Slab").delete().run()
+		frappe.qb.from_("Salary Component").delete().run()
+		frappe.qb.from_("Employee Benefit Application").delete().run()
+		frappe.qb.from_("Employee Benefit Claim").delete().run()
+		employee = frappe.qb.DocType("Employee")
+		frappe.qb.from_(employee).delete().where(employee.company == "_Test Company").run()
+		frappe.qb.from_("Salary Slip").delete().run()
 
 	def create_records(self):
 		self.employee = make_employee(
@@ -108,6 +109,71 @@ class TestIncomeTaxComputation(HRMSTestSuite):
 
 		for key, val in expected_data.items():
 			self.assertEqual(result[1][0].get(key), val)
+
+	def test_employee_joined_after_payroll_period_is_excluded(self):
+		# employee joins after the payroll period ends -> employment does not overlap
+		# the period, so they must be excluded from the report (and not crash it while
+		# trying to build a salary slip with no applicable salary structure)
+		joining_date = add_days(self.payroll_period.end_date, 90)
+		employee = make_employee(
+			"joined_after_period@example.com",
+			company="_Test Company",
+			date_of_joining=joining_date,
+		)
+		make_salary_structure(
+			"Monthly Salary Structure Joined After Period",
+			"Monthly",
+			employee=employee,
+			company="_Test Company",
+			currency="INR",
+			from_date=joining_date,
+			payroll_period=self.payroll_period,
+			test_tax=True,
+		)
+
+		filters = frappe._dict(
+			{
+				"company": "_Test Company",
+				"payroll_period": self.payroll_period.name,
+			}
+		)
+		result = execute(filters)[1]
+
+		employees_in_report = [row.get("employee") for row in result]
+		self.assertNotIn(employee, employees_in_report)
+
+	def test_employee_relieved_before_payroll_period_is_excluded(self):
+		# employee relieved before the payroll period starts -> employment does not
+		# overlap the period, so they must be excluded from the report
+		joining_date = add_days(self.payroll_period.start_date, -400)
+		relieving_date = add_days(self.payroll_period.start_date, -1)
+		employee = make_employee(
+			"relieved_before_period@example.com",
+			company="_Test Company",
+			date_of_joining=joining_date,
+		)
+		make_salary_structure(
+			"Monthly Salary Structure Relieved Before Period",
+			"Monthly",
+			employee=employee,
+			company="_Test Company",
+			currency="INR",
+			from_date=joining_date,
+			payroll_period=self.payroll_period,
+			test_tax=True,
+		)
+		frappe.db.set_value("Employee", employee, {"relieving_date": relieving_date, "status": "Left"})
+
+		filters = frappe._dict(
+			{
+				"company": "_Test Company",
+				"payroll_period": self.payroll_period.name,
+			}
+		)
+		result = execute(filters)[1]
+
+		employees_in_report = [row.get("employee") for row in result]
+		self.assertNotIn(employee, employees_in_report)
 
 	def test_get_report_for_all_employees(self):
 		frappe.db.delete("Employee")
