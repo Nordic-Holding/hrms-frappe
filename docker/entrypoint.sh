@@ -21,6 +21,11 @@ bench set-redis-cache-host "redis://${REDIS_CACHE_HOST:-redis-cache}:6379"
 bench set-redis-queue-host "redis://${REDIS_QUEUE_HOST:-redis-queue}:6379"
 bench set-redis-socketio-host "redis://${REDIS_QUEUE_HOST:-redis-queue}:6379"
 
+# PDF generation with Chrome: use the Debian chromium installed in the image
+# (Frappe would otherwise download its own build, which lacks system libraries here).
+bench set-config -g chromium_path /usr/bin/chromium
+bench set-config -g -p chromium_start_timeout 20
+
 echo "Waiting for MariaDB at ${DB_HOST:-mariadb}:${DB_PORT:-3306}..."
 timeout=120
 elapsed=0

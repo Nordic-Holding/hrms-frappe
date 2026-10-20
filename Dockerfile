@@ -6,8 +6,9 @@ ARG PAYMENTS_BRANCH=version-16
 
 USER root
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends netcat-openbsd && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends netcat-openbsd chromium fonts-dejavu-core && \
+    rm -rf /var/lib/apt/lists/* && \
+    chromium --version
 USER frappe
 
 WORKDIR /home/frappe
