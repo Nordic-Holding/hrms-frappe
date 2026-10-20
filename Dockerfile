@@ -11,6 +11,10 @@ RUN apt-get update && \
     chromium --version
 USER frappe
 
+# Newer MariaDB client tools require TLS by default; the MariaDB 10.11 service has no TLS,
+# so bench backup / bench mariadb would fail without this.
+RUN printf '[client]\nskip-ssl\n' > /home/frappe/.my.cnf
+
 WORKDIR /home/frappe
 ENV NVM_DIR=/home/frappe/.nvm
 
