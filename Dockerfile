@@ -3,8 +3,6 @@ FROM frappe/bench:latest
 ARG FRAPPE_BRANCH=version-16
 ARG ERPNEXT_BRANCH=version-16
 ARG PAYMENTS_BRANCH=version-16
-# Frappe Assistant Core (MCP connector for Claude). Pinned to a release tag.
-ARG FAC_VERSION=v3.3.0
 
 USER root
 RUN apt-get update && \
@@ -40,10 +38,6 @@ RUN source "$NVM_DIR/nvm.sh" && \
     bench get-app --branch ${ERPNEXT_BRANCH} --skip-assets erpnext && \
     bench get-app --branch ${PAYMENTS_BRANCH} --skip-assets payments
 
-# Separate layer so adding/updating FAC does not re-pull erpnext on a cached build.
-RUN source "$NVM_DIR/nvm.sh" && \
-    bench get-app --branch ${FAC_VERSION} --skip-assets https://github.com/buildswithpaul/Frappe_Assistant_Core
-
 COPY --chown=frappe:frappe . apps/hrms
 
 RUN source "$NVM_DIR/nvm.sh" && \
@@ -62,9 +56,6 @@ RUN source "$NVM_DIR/nvm.sh" && \
         apps/erpnext/.git \
         apps/payments/.git \
         apps/hrms/.git \
-        apps/frappe_assistant_core/.git \
-        apps/frappe_assistant_core/node_modules \
-        apps/frappe_assistant_core/frappe_assistant_core/chat/frontend/node_modules \
         apps/hrms/node_modules \
         apps/hrms/frontend/node_modules \
         apps/hrms/roster/node_modules \
