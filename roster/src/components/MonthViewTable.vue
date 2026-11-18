@@ -323,6 +323,7 @@ type MappedEvents = Record<string, Record<string, Holiday | Leave | Shift[]>>;
 
 const props = defineProps<{
 	firstOfMonth: Dayjs;
+	numDays: number;
 	employees: {
 		[K in "name" | "employee_name" | "designation" | "image"]: string;
 	}[];
@@ -346,8 +347,8 @@ const dropCell = ref({ employee: "", date: "", shift: "" });
 
 const daysOfMonth = computed(() => {
 	const daysOfMonth = [];
-	for (let i = 1; i <= props.firstOfMonth.daysInMonth(); i++) {
-		const date = props.firstOfMonth.date(i);
+	for (let i = 0; i < props.numDays; i++) {
+		const date = props.firstOfMonth.add(i, "d");
 		daysOfMonth.push({
 			dayName: date.format("ddd"),
 			date: date.format("YYYY-MM-DD"),
@@ -364,7 +365,7 @@ const employeeSearchOptions = computed(() => {
 });
 
 watch(
-	() => [props.firstOfMonth, props.employeeFilters, props.shiftFilters],
+	() => [props.firstOfMonth, props.numDays, props.employeeFilters, props.shiftFilters],
 	() => {
 		loading.value = true;
 		events.fetch();
@@ -396,7 +397,7 @@ const events = createResource({
 	makeParams() {
 		return {
 			month_start: props.firstOfMonth.format("YYYY-MM-DD"),
-			month_end: props.firstOfMonth.endOf("month").format("YYYY-MM-DD"),
+			month_end: props.firstOfMonth.add(props.numDays - 1, "d").format("YYYY-MM-DD"),
 			employee_filters: props.employeeFilters,
 			shift_filters: props.shiftFilters,
 		};
@@ -440,8 +441,8 @@ const swapShift = createResource({
 
 const mapEventsToDates = (data: Events, mappedEvents: MappedEvents, employee: string) => {
 	mappedEvents[employee] = {};
-	for (let d = 1; d <= props.firstOfMonth.daysInMonth(); d++) {
-		const date = props.firstOfMonth.date(d);
+	for (let d = 0; d < props.numDays; d++) {
+		const date = props.firstOfMonth.add(d, "d");
 		const key = date.format("YYYY-MM-DD");
 
 		for (const event of Object.values(data[employee])) {

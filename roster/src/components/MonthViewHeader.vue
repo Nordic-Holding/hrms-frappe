@@ -3,8 +3,14 @@
 		<!-- Month Change -->
 		<div class="flex items-center bg-gray-50 rounded-md space-x-0.5">
 			<Button icon="chevron-left" variant="ghost" @click="emit('addToMonth', -1)" />
-			<span class="w-32 text-center font-medium text-base">
-				{{ props.firstOfMonth.format("MMMM") }}, {{ firstOfMonth.format("YYYY") }}
+			<span class="w-48 text-center font-medium text-base">
+				<template v-if="props.viewMode === 'week'">
+					{{ props.firstOfMonth.format("DD MMM") }} -
+					{{ props.firstOfMonth.add(props.numDays - 1, "d").format("DD MMM YYYY") }}
+				</template>
+				<template v-else>
+					{{ props.firstOfMonth.format("MMMM") }}, {{ props.firstOfMonth.format("YYYY") }}
+				</template>
 			</span>
 			<Button icon="chevron-right" variant="ghost" @click="emit('addToMonth', 1)" />
 		</div>
@@ -42,6 +48,8 @@ export type FilterField =
 
 const props = defineProps<{
 	firstOfMonth: Dayjs;
+	numDays: number;
+	viewMode: "week" | "month";
 }>();
 
 const emit = defineEmits<{

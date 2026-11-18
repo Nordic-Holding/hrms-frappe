@@ -3,8 +3,25 @@
 		<div class="flex items-center">
 			<FeatherIcon name="calendar" class="h-7 w-7 text-gray-500 mr-2.5" />
 			<span class="font-semibold text-2xl text-gray-500 mr-2">Roster:</span>
-			<span class="font-semibold text-2xl">Month View</span>
+			<span class="font-semibold text-2xl">{{
+				viewMode === "week" ? "Week View" : "Month View"
+			}}</span>
 			<div class="ml-auto space-x-2.5">
+				<!-- Nordic: Week / Month switch -->
+				<Button
+					size="md"
+					:variant="viewMode === 'week' ? 'solid' : 'subtle'"
+					@click="setViewMode('week')"
+				>
+					Week
+				</Button>
+				<Button
+					size="md"
+					:variant="viewMode === 'month' ? 'solid' : 'subtle'"
+					@click="setViewMode('month')"
+				>
+					Month
+				</Button>
 				<Dropdown
 					:options="VIEW_OPTIONS"
 					:button="{
@@ -33,19 +50,21 @@
 			</div>
 		</div>
 		<MonthViewHeader
-			:firstOfMonth="firstOfMonth"
+			:firstOfMonth="periodStart"
+			:numDays="numDays"
+			:viewMode="viewMode"
 			@updateFilters="updateFilters"
 			@addToMonth="addToMonth"
 		/>
+		<!-- Nordic: no company required; staff of all companies the user may see are listed -->
 		<MonthViewTable
-			v-if="isCompanySelected"
 			ref="monthViewTable"
-			:firstOfMonth="firstOfMonth"
+			:firstOfMonth="periodStart"
+			:numDays="numDays"
 			:employees="employees.data || []"
 			:employeeFilters="employeeFilters"
 			:shiftFilters="shiftFilters"
 		/>
-		<div v-else class="py-40 text-center">Please select a company.</div>
 	</div>
 	<ShiftAssignmentDialog
 		v-model="showShiftAssignmentDialog"
@@ -59,8 +78,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, computed } from "vue";
 import { Dropdown, FeatherIcon, createListResource } from "frappe-ui";
+
+import { Dayjs } from "dayjs";
 
 import { dayjs, goTo, raiseToast } from "../utils";
 import MonthViewTable from "../components/MonthViewTable.vue";
@@ -75,9 +96,28 @@ export type ShiftFilters = {
 };
 
 const monthViewTable = ref<InstanceType<typeof MonthViewTable>>();
-const isCompanySelected = ref(false);
 const showShiftAssignmentDialog = ref(false);
-const firstOfMonth = ref(dayjs().date(1).startOf("D"));
+
+// Nordic: the roster week runs Saturday to Friday
+const rosterWeekStart = (date: Dayjs) => date.subtract((date.day() + 1) % 7, "d").startOf("D");
+const viewMode = ref<"week" | "month">("week");
+const periodStart = ref(rosterWeekStart(dayjs()));
+const numDays = computed(() =>
+	viewMode.value === "week" ? 7 : periodStart.value.daysInMonth(),
+);
+
+const setViewMode = (mode: "week" | "month") => {
+	if (mode === viewMode.value) return;
+	if (mode === "month") {
+		periodStart.value = periodStart.value.add(3, "d").date(1).startOf("D");
+	} else {
+		const today = dayjs();
+		periodStart.value = rosterWeekStart(
+			today.isSame(periodStart.value, "month") ? today : periodStart.value,
+		);
+	}
+	viewMode.value = mode;
+};
 const employeeFilters = reactive<EmployeeFilters>({
 	status: "Active",
 });
@@ -95,12 +135,13 @@ const VIEW_OPTIONS = [
 }));
 
 const addToMonth = (change: number) => {
-	firstOfMonth.value = firstOfMonth.value.add(change, "M");
+	periodStart.value =
+		viewMode.value === "week"
+			? periodStart.value.add(7 * change, "d")
+			: periodStart.value.add(change, "M");
 };
 
 const updateFilters = (newFilters: EmployeeFilters & ShiftFilters) => {
-	isCompanySelected.value = !!newFilters.company;
-	if (!isCompanySelected.value) return;
 	let employeeUpdated = false;
 	(Object.entries(newFilters) as [keyof EmployeeFilters | keyof ShiftFilters, string][]).forEach(
 		([key, value]) => {
